@@ -38,6 +38,17 @@ start a long-running bot process inside GitHub Actions.
 - `!quest` — Show the Quest Control Center
 - `!quest help` — Show the help guide
 
+## Set the quest channel
+
+Run `/set channel` in the text channel you want to use, or choose a channel
+with the `target` option. This command requires **Manage Server** permission.
+The setting is saved separately for each server. Prefix commands, quest slash
+commands, and the control panel buttons work only in that selected channel.
+
+Channel settings are stored in `.data/quest-channels.json` so they survive bot
+process restarts. Keep that data directory available if you move the bot to a
+different machine.
+
 ## Environment Variables
 
 | Variable | Required | Description |

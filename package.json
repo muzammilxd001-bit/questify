@@ -6,7 +6,8 @@
   "scripts": {
     "start": "tsx bot.ts",
     "dev": "tsx --inspect bot.ts",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "tsx --test src/questChannels.test.ts"
   },
   "keywords": [],
   "author": "",

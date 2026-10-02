@@ -7,12 +7,15 @@ import {
     ComponentType,
     ButtonStyle,
     TextInputStyle,
+    ChannelType,
+    PermissionFlagsBits,
 } from "discord-api-types/v10";
 import { Client } from "@discordjs/core";
 import { REST } from "@discordjs/rest";
 import { WebSocketManager } from "@discordjs/ws";
 import { runQuestsForToken, fetchQuestsStatus } from "./src/questRunner";
 import type { Quest, QuestStatusInfo } from "./src/questRunner";
+import { loadQuestChannels, questChannelNotice, saveQuestChannel } from "./src/questChannels";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -27,6 +30,8 @@ if (!CLIENT_ID) {
 }
 
 const PREFIX = "!quest";
+const questChannels = loadQuestChannels();
+const BRAND_COLOR = 0x735cff;
 
 const INTENTS =
     GatewayIntentBits.Guilds |
@@ -72,27 +77,32 @@ function buildTokenRequiredEmbed() {
     return {
         embeds: [
             {
-                color: 0x5865f2,
-                title: "Quest Control Center",
+                color: BRAND_COLOR,
+                author: { name: "QUEST CONTROL  /  DASHBOARD" },
+                title: "✦ Your quest hub",
                 description:
-                    "Manage quest status and runs from one polished panel.\n\n" +
-                    "Choose an action below to get started. Replies from the bot are private where possible.",
+                    "Everything you need, right here. Pick an action below to get started.\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 fields: [
                     {
-                        name: "Available actions",
-                        value:
-                            "▶️ **Run quests** — start a quest run\n" +
-                            "📊 **Check status** — view progress and rewards\n" +
-                            "❔ **Help** — see commands and safety guidance",
+                        name: "01  ·  Run quests",
+                        value: "Start a run using the private token popup.",
                         inline: false,
                     },
                     {
-                        name: "Security reminder",
-                        value: "Never paste a token into a public channel. Use the private popup and revoke any credential you believe was exposed.",
+                        name: "02  ·  Check status",
+                        value: "See progress, rewards and time remaining.",
+                        inline: false,
+                    },
+                    {
+                        name: "03  ·  Need help?",
+                        value:
+                            "Open the guide for commands and safety tips.",
                         inline: false,
                     },
                 ],
-                footer: { text: "Quest Control • Use responsibly" },
+                footer: { text: "QUEST CONTROL  •  Never post a token publicly" },
+                timestamp: new Date().toISOString(),
             },
         ],
         components: [
@@ -103,8 +113,8 @@ function buildTokenRequiredEmbed() {
                         type: ComponentType.Button,
                         style: ButtonStyle.Primary,
                         custom_id: BTN_RUN,
-                        label: "Link Token",
-                        emoji: { name: "🔗" },
+                        label: "Run Quests",
+                        emoji: { name: "▶️" },
                     },
                     {
                         type: ComponentType.Button,
@@ -130,15 +140,18 @@ function buildHelpEmbed() {
     return {
         embeds: [
             {
-                color: 0x8b5cf6,
-                title: "Quest Bot Help",
+                color: BRAND_COLOR,
+                author: { name: "QUEST CONTROL  /  GUIDE" },
+                title: "✦ Command guide",
                 description:
-                    "A quick guide to the bot's commands and controls.",
+                    "Your quick reference for everything Quest Control.\n━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 fields: [
                     {
                         name: "Slash commands",
                         value:
+                            "`/set channel [#channel]` — admin: choose the quest channel\n" +
                             "`/quest-help` — open this guide\n" +
+                            "`/quest-ping` — check connectivity\n" +
                             "`/quest-status` — view quest progress\n" +
                             "`/run-quests` — start a quest run",
                         inline: false,
@@ -148,7 +161,7 @@ function buildHelpEmbed() {
                         value:
                             "`!quest` — open the control center\n" +
                             "`!quest help` — open this guide\n" +
-                            "`!quest status <token>` — legacy status command",
+                            "`!quest status <token>` — legacy status command (not recommended)",
                         inline: false,
                     },
                     {
@@ -158,13 +171,13 @@ function buildHelpEmbed() {
                         inline: false,
                     },
                     {
-                        name: "Important",
+                        name: "🔒 Safety first",
                         value:
-                            "Quest availability depends on Discord account eligibility and API support. Unsupported or blocked quests may be reported instead of completed.",
+                            "Never share your user token in a public message. User-token automation may violate Discord's rules and put your account at risk.",
                         inline: false,
                     },
                 ],
-                footer: { text: "Quest Control • Help center" },
+                footer: { text: "QUEST CONTROL  •  Help center" },
                 timestamp: new Date().toISOString(),
             },
         ],
@@ -176,7 +189,8 @@ function buildPingEmbed() {
         embeds: [
             {
                 color: 0x57f287,
-                title: "Quest Bot Online",
+                author: { name: "QUEST CONTROL  /  SYSTEM" },
+                title: "✦ All systems online",
                 description:
                     "The bot is connected and ready to receive commands.",
                 fields: [
@@ -191,7 +205,7 @@ function buildPingEmbed() {
                         inline: true,
                     },
                 ],
-                footer: { text: "Quest Control • System status" },
+                footer: { text: "QUEST CONTROL  •  System status" },
                 timestamp: new Date().toISOString(),
             },
         ],
@@ -267,7 +281,7 @@ function buildCompleteEmbed(quest: Quest) {
 
     const embed: any = {
         color,
-        title: "<:Verified:1519754442562339080> Quest Complete!",
+        title: "✦ Quest Complete",
         description: `**${questName}**\n*${gameTitle} • ${publisher}*`,
         fields: [
             { name: "📋 Task", value: taskLines || "Unknown", inline: false },
@@ -496,10 +510,32 @@ async function registerCommands() {
                 name: "quest-ping",
                 description: "Check whether the Quest Bot is online",
             },
+            {
+                name: "set",
+                description: "Configure Quest Control for this server",
+                dm_permission: false,
+                default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+                options: [
+                    {
+                        name: "channel",
+                        description: "Choose the only channel where quest commands work",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        options: [
+                            {
+                                name: "target",
+                                description: "Channel to use (defaults to this channel)",
+                                type: ApplicationCommandOptionType.Channel,
+                                channel_types: [ChannelType.GuildText],
+                                required: false,
+                            },
+                        ],
+                    },
+                ],
+            },
         ],
     });
     console.log(
-        "Slash commands /run-quests, /quest-status registered globally.",
+        "Quest commands and /set channel registered globally.",
     );
 }
 
@@ -582,14 +618,34 @@ client.on(
     async ({ data: interaction, api }) => {
         const channelId =
             (interaction as any).channel_id ?? interaction.channel?.id ?? "";
+        const guildId = (interaction as any).guild_id as string | undefined;
         const userId =
             (interaction as any).member?.user?.id ??
             (interaction as any).user?.id ??
             "";
+        const customId = (interaction.data as any)?.custom_id as string | undefined;
+        const questInteraction =
+            (interaction.type === InteractionType.MessageComponent &&
+                [BTN_RUN, BTN_STATUS, BTN_HELP].includes(customId ?? "")) ||
+            (interaction.type === InteractionType.ModalSubmit &&
+                [MODAL_RUN, MODAL_STATUS].includes(customId ?? "")) ||
+            (interaction.type === InteractionType.ApplicationCommand &&
+                ["run-quests", "quest-status", "quest-help", "quest-ping"].includes(
+                    (interaction.data as any)?.name,
+                ));
+        if (questInteraction) {
+            const notice = questChannelNotice(questChannels, guildId, channelId);
+            if (notice) {
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    embeds: [{ color: BRAND_COLOR, title: "✦ Quest channel only", description: notice }],
+                    flags: 64,
+                });
+                return;
+            }
+        }
 
         // ── Button clicks ─────────────────────────────────────────────────────────
         if (interaction.type === InteractionType.MessageComponent) {
-            const customId = (interaction.data as any)?.custom_id as string;
 
             if (customId === BTN_RUN) {
                 const cd = checkCooldown(userId);
@@ -637,7 +693,6 @@ client.on(
 
         // ── Modal submits ─────────────────────────────────────────────────────────
         if (interaction.type === InteractionType.ModalSubmit) {
-            const customId = (interaction.data as any)?.custom_id as string;
             const components = (interaction.data as any)?.components as any[];
             const userToken =
                 components?.[0]?.components?.[0]?.value?.trim() ?? "";
@@ -725,6 +780,53 @@ client.on(
         if (interaction.type !== InteractionType.ApplicationCommand) return;
         const cmdData = interaction.data as any;
         if (cmdData?.type !== ApplicationCommandType.ChatInput) return;
+
+        if (cmdData?.name === "set") {
+            const perms = BigInt((interaction as any).member?.permissions ?? "0");
+            if (
+                !guildId ||
+                !(perms & (PermissionFlagsBits.ManageGuild | PermissionFlagsBits.Administrator))
+            ) {
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    content: "Only a server admin with Manage Server permission can set the quest channel.",
+                    flags: 64,
+                });
+                return;
+            }
+            const subcommand = cmdData.options?.find((o: any) => o.name === "channel");
+            const selected = subcommand?.options?.find((o: any) => o.name === "target")?.value as string | undefined;
+            const targetId = selected ?? channelId;
+            const targetType = selected
+                ? cmdData.resolved?.channels?.[selected]?.type
+                : (interaction as any).channel?.type;
+            if (!subcommand || targetType !== ChannelType.GuildText) {
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    content: "Choose a regular text channel. Run `/set channel` inside one, or pass `target`.",
+                    flags: 64,
+                });
+                return;
+            }
+            try {
+                saveQuestChannel(questChannels, guildId, targetId);
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    embeds: [{
+                        color: BRAND_COLOR,
+                        author: { name: "QUEST CONTROL  /  SETTINGS" },
+                        title: "✦ Quest channel saved",
+                        description: `Quest commands and panel actions now work only in <#${targetId}>.`,
+                        footer: { text: "QUEST CONTROL  •  Server settings" },
+                    }],
+                    flags: 64,
+                });
+            } catch (error) {
+                console.error("Could not save quest channel:", error);
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    content: "Could not save the channel. Check the bot's data directory and try again.",
+                    flags: 64,
+                });
+            }
+            return;
+        }
 
         if (cmdData?.name === "quest-help") {
             await api.interactions.reply(
@@ -820,7 +922,8 @@ client.on(
     async ({ data: message, api }) => {
         if (message.author.bot) return;
         const raw = message.content?.trim() ?? "";
-        if (!raw.toLowerCase().startsWith(PREFIX)) return;
+        if (!/^!quest(?:\s|$)/i.test(raw)) return;
+        if (questChannelNotice(questChannels, message.guild_id, message.channel_id)) return;
 
         const args = raw.slice(PREFIX.length).trim();
 
