@@ -164,7 +164,7 @@ function buildHelpEmbed() {
                             "`/quest-config` — view this server's channel setting\n" +
                             "`/set channel [#channel]` — admin: choose the quest channel\n" +
                             "`/reset channel` — admin: disable quest commands until a channel is set\n" +
-                            "`/quest-notify on|off` — manage new quest DMs\n" +
+                            "`/quest-notify on|off|status|test` — manage and test new quest DMs\n" +
                             "`/quest-announce <quest> [details]` — admin: DM quest users\n" +
                             "`/quest-help` — open this guide\n" +
                             "`/quest-ping` — check connectivity\n" +
@@ -620,6 +620,16 @@ async function registerCommands() {
                         description: "Stop receiving new quest announcement DMs",
                         type: ApplicationCommandOptionType.Subcommand,
                     },
+                    {
+                        name: "status",
+                        description: "Check whether new quest announcement DMs are enabled",
+                        type: ApplicationCommandOptionType.Subcommand,
+                    },
+                    {
+                        name: "test",
+                        description: "Send yourself a test quest notification",
+                        type: ApplicationCommandOptionType.Subcommand,
+                    },
                 ],
             },
             {
@@ -1062,6 +1072,41 @@ client.on(
                 return;
             }
             const subcommand = cmdData.options?.[0]?.name;
+            if (subcommand === "status") {
+                const enabled = getQuestRecipients(questAudience, guildId).includes(userId);
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    embeds: [{
+                        color: BRAND_COLOR,
+                        title: enabled ? "✦ Quest DMs are on" : "✦ Quest DMs are off",
+                        description: enabled
+                            ? "You'll receive English quest announcements sent by this server's admin."
+                            : "Run `/quest-notify on` if you want to receive English quest announcements.",
+                        footer: { text: "Only you can see this setting" },
+                    }],
+                    flags: 64,
+                });
+                return;
+            }
+            if (subcommand === "test") {
+                await api.interactions.defer(interaction.id, interaction.token, {
+                    flags: 64,
+                });
+                try {
+                    await sendQuestAnnouncement(
+                        userId,
+                        "Notification test",
+                        "This is a test message. New quest announcements will arrive here when enabled.",
+                    );
+                    await api.interactions.editReply(CLIENT_ID!, interaction.token, {
+                        content: "Test DM sent. Check your direct messages.",
+                    });
+                } catch (error: any) {
+                    await api.interactions.editReply(CLIENT_ID!, interaction.token, {
+                        content: `I couldn't send a DM. Check your server privacy settings and try again. (${error.message ?? "delivery failed"})`,
+                    });
+                }
+                return;
+            }
             if (subcommand !== "on" && subcommand !== "off") return;
             try {
                 setQuestNotification(questAudience, guildId, userId, subcommand === "on");

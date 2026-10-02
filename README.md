@@ -37,7 +37,7 @@ start a long-running bot process inside GitHub Actions.
 - `/quest-status` — Check your active quests and progress
 - `/quest-config` — Show the configured quest channel (Manage Server required)
 - `/reset channel` — Clear the channel setting and disable quest commands (Manage Server required)
-- `/quest-notify on|off` — Enable or disable new quest announcement DMs
+- `/quest-notify on|off|status|test` — Manage and test new quest announcement DMs
 - `/quest-announce <quest> [details]` — Admin sends an English quest announcement to bot users
 - `!quest` — Show the Quest Control Center
 - `!quest help` — Show the help guide
