@@ -7,7 +7,7 @@
     "start": "tsx bot.ts",
     "dev": "tsx --inspect bot.ts",
     "check": "tsc --noEmit",
-    "test": "tsx --test src/questChannels.test.ts"
+    "test": "tsx --test src/*.test.ts"
   },
   "keywords": [],
   "author": "",

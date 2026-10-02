@@ -37,6 +37,8 @@ start a long-running bot process inside GitHub Actions.
 - `/quest-status` — Check your active quests and progress
 - `/quest-config` — Show the configured quest channel (Manage Server required)
 - `/reset channel` — Clear the channel setting and disable quest commands (Manage Server required)
+- `/quest-notify on|off` — Enable or disable new quest announcement DMs
+- `/quest-announce <quest> [details]` — Admin sends an English quest announcement to bot users
 - `!quest` — Show the Quest Control Center
 - `!quest help` — Show the help guide
 
@@ -53,6 +55,16 @@ again.
 Channel settings are stored in `.data/quest-channels.json` so they survive bot
 process restarts. Keep that data directory available if you move the bot to a
 different machine.
+
+## New quest announcements
+
+When a member uses a quest command in the configured channel, the bot records
+their Discord user ID for this server (it never stores their user token).
+Members can run `/quest-notify off` to opt out, or `/quest-notify on` to opt in
+again. Admins can use `/quest-announce` with a quest name and optional details
+to send an English embed DM to registered recipients. DMs can fail when a user
+does not accept messages from the bot. Recipient tracking begins after this
+feature is installed; the bot has no history of earlier users.
 
 ## Environment Variables
 

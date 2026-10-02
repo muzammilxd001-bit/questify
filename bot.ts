@@ -21,6 +21,12 @@ import {
     removeQuestChannel,
     saveQuestChannel,
 } from "./src/questChannels";
+import {
+    getQuestRecipients,
+    loadQuestAudience,
+    recordQuestUser,
+    setQuestNotification,
+} from "./src/questAudience";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -36,6 +42,7 @@ if (!CLIENT_ID) {
 
 const PREFIX = "!quest";
 const questChannels = loadQuestChannels();
+const questAudience = loadQuestAudience();
 const BRAND_COLOR = 0x735cff;
 
 const INTENTS =
@@ -157,6 +164,8 @@ function buildHelpEmbed() {
                             "`/quest-config` — view this server's channel setting\n" +
                             "`/set channel [#channel]` — admin: choose the quest channel\n" +
                             "`/reset channel` — admin: disable quest commands until a channel is set\n" +
+                            "`/quest-notify on|off` — manage new quest DMs\n" +
+                            "`/quest-announce <quest> [details]` — admin: DM quest users\n" +
                             "`/quest-help` — open this guide\n" +
                             "`/quest-ping` — check connectivity\n" +
                             "`/quest-status` — view quest progress\n" +
@@ -217,6 +226,44 @@ function buildPingEmbed() {
             },
         ],
     };
+}
+
+function buildQuestAnnouncementEmbed(questName: string, details?: string) {
+    return {
+        color: BRAND_COLOR,
+        author: { name: "QUEST CONTROL  /  NEW QUEST" },
+        title: `🎮 New Quest: ${questName}`,
+        description:
+            "A new Discord Quest is available." +
+            (details ? `\n\n${details}` : ""),
+        footer: { text: "QUEST CONTROL  •  You received this because you used quest notifications" },
+        timestamp: new Date().toISOString(),
+    };
+}
+
+function rememberQuestUser(guildId: string | undefined, userId: string): void {
+    if (!guildId || !userId) return;
+    try {
+        recordQuestUser(questAudience, guildId, userId);
+    } catch (error) {
+        console.error("Could not record quest notification recipient:", error);
+    }
+}
+
+async function sendQuestAnnouncement(
+    userId: string,
+    questName: string,
+    details?: string,
+): Promise<void> {
+    const dm = (await rest.post("/users/@me/channels" as any, {
+        body: { recipient_id: userId },
+    })) as any;
+    await rest.post(`/channels/${dm.id}/messages` as any, {
+        body: {
+            embeds: [buildQuestAnnouncementEmbed(questName, details)],
+            allowed_mentions: { parse: [] },
+        },
+    });
 }
 
 // ── Token modal ───────────────────────────────────────────────────────────────
@@ -558,6 +605,45 @@ async function registerCommands() {
                     },
                 ],
             },
+            {
+                name: "quest-notify",
+                description: "Choose whether you receive new quest announcement DMs",
+                dm_permission: false,
+                options: [
+                    {
+                        name: "on",
+                        description: "Receive new quest announcement DMs",
+                        type: ApplicationCommandOptionType.Subcommand,
+                    },
+                    {
+                        name: "off",
+                        description: "Stop receiving new quest announcement DMs",
+                        type: ApplicationCommandOptionType.Subcommand,
+                    },
+                ],
+            },
+            {
+                name: "quest-announce",
+                description: "DM a new quest announcement to this server's bot users",
+                dm_permission: false,
+                default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+                options: [
+                    {
+                        name: "quest",
+                        description: "Name of the new quest",
+                        type: ApplicationCommandOptionType.String,
+                        required: true,
+                        max_length: 100,
+                    },
+                    {
+                        name: "details",
+                        description: "Optional quest details",
+                        type: ApplicationCommandOptionType.String,
+                        required: false,
+                        max_length: 1000,
+                    },
+                ],
+            },
         ],
     });
     console.log(
@@ -668,6 +754,7 @@ client.on(
                 });
                 return;
             }
+            rememberQuestUser(guildId, userId);
         }
 
         // ── Button clicks ─────────────────────────────────────────────────────────
@@ -807,7 +894,7 @@ client.on(
         const cmdData = interaction.data as any;
         if (cmdData?.type !== ApplicationCommandType.ChatInput) return;
 
-        if (["set", "reset", "quest-config"].includes(cmdData?.name)) {
+        if (["set", "reset", "quest-config", "quest-announce"].includes(cmdData?.name)) {
             const perms = BigInt((interaction as any).member?.permissions ?? "0");
             if (
                 !guildId ||
@@ -817,6 +904,62 @@ client.on(
                     content: "Only a server admin with Manage Server permission can set the quest channel.",
                     flags: 64,
                 });
+                return;
+            }
+
+            if (cmdData.name === "quest-announce") {
+                const questName = cmdData.options?.find((o: any) => o.name === "quest")?.value?.trim();
+                const details = cmdData.options?.find((o: any) => o.name === "details")?.value?.trim();
+                if (!questName) {
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        content: "Add a quest name before sending the announcement.",
+                        flags: 64,
+                    });
+                    return;
+                }
+
+                const recipients = getQuestRecipients(questAudience, guildId);
+                if (recipients.length === 0) {
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        content: "No recipients are registered yet. Members must use a quest command in the configured channel first. Usage tracking starts with this update.",
+                        flags: 64,
+                    });
+                    return;
+                }
+
+                await api.interactions.defer(interaction.id, interaction.token, {
+                    flags: 64,
+                });
+                let sent = 0;
+                let failed = 0;
+                for (let index = 0; index < recipients.length; index++) {
+                    try {
+                        await sendQuestAnnouncement(recipients[index], questName, details);
+                        sent++;
+                    } catch (error: any) {
+                        failed++;
+                        console.warn(
+                            `Quest announcement DM failed for recipient ${recipients[index]}:`,
+                            error.message ?? error,
+                        );
+                    }
+                    if (index < recipients.length - 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 500));
+                    }
+                    if ((index + 1) % 10 === 0 || index === recipients.length - 1) {
+                        await api.interactions.editReply(CLIENT_ID!, interaction.token, {
+                            embeds: [{
+                                color: BRAND_COLOR,
+                                author: { name: "QUEST CONTROL  /  ANNOUNCEMENT" },
+                                title: "✦ Sending quest DMs",
+                                description: `Sent: **${sent}** · Could not deliver: **${failed}** · Total: **${recipients.length}**`,
+                                footer: { text: "Members can turn off notifications with /quest-notify off" },
+                            }],
+                        }).catch((error: any) => {
+                            console.warn("Could not update announcement progress:", error.message);
+                        });
+                    }
+                }
                 return;
             }
 
@@ -904,6 +1047,39 @@ client.on(
                 console.error("Could not save quest channel:", error);
                 await api.interactions.reply(interaction.id, interaction.token, {
                     content: "Could not save the channel. Check the bot's data directory and try again.",
+                    flags: 64,
+                });
+            }
+            return;
+        }
+
+        if (cmdData?.name === "quest-notify") {
+            if (!guildId) {
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    content: "Use this command in a server.",
+                    flags: 64,
+                });
+                return;
+            }
+            const subcommand = cmdData.options?.[0]?.name;
+            if (subcommand !== "on" && subcommand !== "off") return;
+            try {
+                setQuestNotification(questAudience, guildId, userId, subcommand === "on");
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    embeds: [{
+                        color: BRAND_COLOR,
+                        title: subcommand === "on" ? "✦ Quest DMs enabled" : "✦ Quest DMs disabled",
+                        description: subcommand === "on"
+                            ? "You'll receive English new-quest announcements sent by this server's admin."
+                            : "You won't receive new quest announcement DMs from this server.",
+                        footer: { text: "Only your Discord user ID is stored for this preference" },
+                    }],
+                    flags: 64,
+                });
+            } catch (error) {
+                console.error("Could not update quest notification setting:", error);
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    content: "Could not update your notification setting. Try again later.",
                     flags: 64,
                 });
             }
@@ -1006,6 +1182,7 @@ client.on(
         const raw = message.content?.trim() ?? "";
         if (!/^!quest(?:\s|$)/i.test(raw)) return;
         if (questChannelNotice(questChannels, message.guild_id, message.channel_id)) return;
+        rememberQuestUser(message.guild_id, message.author.id);
 
         const args = raw.slice(PREFIX.length).trim();
 
