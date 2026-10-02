@@ -15,7 +15,12 @@ import { REST } from "@discordjs/rest";
 import { WebSocketManager } from "@discordjs/ws";
 import { runQuestsForToken, fetchQuestsStatus } from "./src/questRunner";
 import type { Quest, QuestStatusInfo } from "./src/questRunner";
-import { loadQuestChannels, questChannelNotice, saveQuestChannel } from "./src/questChannels";
+import {
+    loadQuestChannels,
+    questChannelNotice,
+    removeQuestChannel,
+    saveQuestChannel,
+} from "./src/questChannels";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -149,7 +154,9 @@ function buildHelpEmbed() {
                     {
                         name: "Slash commands",
                         value:
+                            "`/quest-config` — view this server's channel setting\n" +
                             "`/set channel [#channel]` — admin: choose the quest channel\n" +
+                            "`/reset channel` — admin: disable quest commands until a channel is set\n" +
                             "`/quest-help` — open this guide\n" +
                             "`/quest-ping` — check connectivity\n" +
                             "`/quest-status` — view quest progress\n" +
@@ -532,10 +539,29 @@ async function registerCommands() {
                     },
                 ],
             },
+            {
+                name: "quest-config",
+                description: "View the configured quest channel for this server",
+                dm_permission: false,
+                default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+            },
+            {
+                name: "reset",
+                description: "Disable quest commands for this server",
+                dm_permission: false,
+                default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+                options: [
+                    {
+                        name: "channel",
+                        description: "Clear the configured quest channel",
+                        type: ApplicationCommandOptionType.Subcommand,
+                    },
+                ],
+            },
         ],
     });
     console.log(
-        "Quest commands and /set channel registered globally.",
+        "Quest commands, channel settings, and admin controls registered globally.",
     );
 }
 
@@ -781,7 +807,7 @@ client.on(
         const cmdData = interaction.data as any;
         if (cmdData?.type !== ApplicationCommandType.ChatInput) return;
 
-        if (cmdData?.name === "set") {
+        if (["set", "reset", "quest-config"].includes(cmdData?.name)) {
             const perms = BigInt((interaction as any).member?.permissions ?? "0");
             if (
                 !guildId ||
@@ -793,6 +819,62 @@ client.on(
                 });
                 return;
             }
+
+            if (cmdData.name === "quest-config") {
+                const configuredChannel = questChannels[guildId];
+                await api.interactions.reply(interaction.id, interaction.token, {
+                    embeds: [{
+                        color: BRAND_COLOR,
+                        author: { name: "QUEST CONTROL  /  SETTINGS" },
+                        title: "✦ Server quest settings",
+                        description: configuredChannel
+                            ? `Quest commands are enabled only in <#${configuredChannel}>.`
+                            : "No quest channel is configured. Quest commands are currently disabled. Use `/set channel` to enable them.",
+                        fields: [{
+                            name: "Channel",
+                            value: configuredChannel ? `<#${configuredChannel}>` : "Not set",
+                            inline: true,
+                        }],
+                        footer: { text: "Visible only to you • Manage Server required" },
+                    }],
+                    flags: 64,
+                });
+                return;
+            }
+
+            if (cmdData.name === "reset") {
+                const subcommand = cmdData.options?.find((o: any) => o.name === "channel");
+                if (!subcommand) {
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        content: "Use `/reset channel` to disable quest commands for this server.",
+                        flags: 64,
+                    });
+                    return;
+                }
+                try {
+                    const removed = removeQuestChannel(questChannels, guildId);
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        embeds: [{
+                            color: BRAND_COLOR,
+                            author: { name: "QUEST CONTROL  /  SETTINGS" },
+                            title: removed ? "✦ Quest channel cleared" : "✦ No channel was set",
+                            description: removed
+                                ? "Quest commands are now disabled for this server. Set a channel again with `/set channel`."
+                                : "Quest commands are already disabled. Use `/set channel` to enable them.",
+                            footer: { text: "Visible only to you • Manage Server required" },
+                        }],
+                        flags: 64,
+                    });
+                } catch (error) {
+                    console.error("Could not clear quest channel:", error);
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        content: "Could not update the channel setting. Check the bot's data directory and try again.",
+                        flags: 64,
+                    });
+                }
+                return;
+            }
+
             const subcommand = cmdData.options?.find((o: any) => o.name === "channel");
             const selected = subcommand?.options?.find((o: any) => o.name === "target")?.value as string | undefined;
             const targetId = selected ?? channelId;

@@ -37,11 +37,33 @@ export function saveQuestChannel(
         throw new Error("Invalid guild or channel ID");
     }
     const next = { ...channels, [guildId]: channelId };
+    persistQuestChannels(next, file);
+    channels[guildId] = channelId;
+}
+
+export function removeQuestChannel(
+    channels: Record<string, string>,
+    guildId: string,
+    file = DATA_FILE,
+): boolean {
+    if (!Object.prototype.hasOwnProperty.call(channels, guildId)) return false;
+    const next = { ...channels };
+    delete next[guildId];
+    persistQuestChannels(next, file);
+    delete channels[guildId];
+    return true;
+}
+
+function persistQuestChannels(
+    channels: Record<string, string>,
+    file: string,
+): void {
     mkdirSync(dirname(file), { recursive: true });
     const temp = `${file}.${process.pid}.tmp`;
-    writeFileSync(temp, JSON.stringify(next, null, 2) + "\n", { mode: 0o600 });
+    writeFileSync(temp, JSON.stringify(channels, null, 2) + "\n", {
+        mode: 0o600,
+    });
     renameSync(temp, file);
-    channels[guildId] = channelId;
 }
 
 export function questChannelNotice(

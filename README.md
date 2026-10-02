@@ -35,6 +35,8 @@ start a long-running bot process inside GitHub Actions.
 - `/quest-ping` — check whether the bot is online
 - `/run-quests` — Auto-complete your Discord quests (requires your user token)
 - `/quest-status` — Check your active quests and progress
+- `/quest-config` — Show the configured quest channel (Manage Server required)
+- `/reset channel` — Clear the channel setting and disable quest commands (Manage Server required)
 - `!quest` — Show the Quest Control Center
 - `!quest help` — Show the help guide
 
@@ -44,6 +46,9 @@ Run `/set channel` in the text channel you want to use, or choose a channel
 with the `target` option. This command requires **Manage Server** permission.
 The setting is saved separately for each server. Prefix commands, quest slash
 commands, and the control panel buttons work only in that selected channel.
+Use `/quest-config` to view the setting privately, or `/reset channel` to clear
+it. Clearing the setting disables quest commands until an admin sets a channel
+again.
 
 Channel settings are stored in `.data/quest-channels.json` so they survive bot
 process restarts. Keep that data directory available if you move the bot to a

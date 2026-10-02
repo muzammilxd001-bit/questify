@@ -6,6 +6,7 @@ import test from "node:test";
 import {
     loadQuestChannels,
     questChannelNotice,
+    removeQuestChannel,
     saveQuestChannel,
 } from "./questChannels";
 
@@ -50,4 +51,22 @@ test("rejects invalid snowflakes instead of persisting them", () => {
     assert.throws(() =>
         saveQuestChannel({}, "not-a-server", "23456789012345678", "/tmp/unused.json"),
     );
+});
+
+test("clears a server channel and disables its quest commands", () => {
+    const directory = mkdtempSync(join(tmpdir(), "quest-channels-"));
+    const file = join(directory, "channels.json");
+    try {
+        const channels = { "12345678901234567": "23456789012345678" };
+        assert.equal(removeQuestChannel(channels, "12345678901234567", file), true);
+        assert.deepEqual(channels, {});
+        assert.deepEqual(loadQuestChannels(file), {});
+        assert.match(
+            questChannelNotice(channels, "12345678901234567", "23456789012345678")!,
+            /No quest channel is set/,
+        );
+        assert.equal(removeQuestChannel(channels, "12345678901234567", file), false);
+    } finally {
+        rmSync(directory, { recursive: true, force: true });
+    }
 });
