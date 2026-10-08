@@ -168,6 +168,7 @@ function buildHelpEmbed() {
                             "`/reset channel` — admin: disable quest commands until a channel is set\n" +
                             "`/quest-notify on|off|status|test` — manage and test new quest DMs\n" +
                             "`/quest-announce <quest> [details]` — admin: DM quest users\n" +
+                            "`/quest-remind <quest> [expires] [details]` — admin: DM a quest reminder\n" +
                             "`/quest-help` — open this guide\n" +
                             "`/quest-ping` — check connectivity\n" +
                             "`/quest-status` — view quest progress\n" +
@@ -243,6 +244,27 @@ function buildQuestAnnouncementEmbed(questName: string, details?: string) {
     };
 }
 
+function buildQuestReminderEmbed(
+    questName: string,
+    expires?: string,
+    details?: string,
+) {
+    const embed: any = {
+        color: EMBED_COLOR,
+        author: { name: "QUEST CONTROL  /  REMINDER" },
+        title: `⏰ Reminder: ${questName}`,
+        description:
+            "A quest is still waiting for you. Run it before it ends." +
+            (details ? `\n\n${details}` : ""),
+        footer: { text: `QUEST CONTROL  •  You received this because you used quest notifications  •  ${FOOTER_CREDIT}` },
+        timestamp: new Date().toISOString(),
+    };
+    if (expires) {
+        embed.fields = [{ name: "⌛ Ends", value: expires, inline: false }];
+    }
+    return embed;
+}
+
 function rememberQuestUser(guildId: string | undefined, userId: string): void {
     if (!guildId || !userId) return;
     try {
@@ -252,20 +274,33 @@ function rememberQuestUser(guildId: string | undefined, userId: string): void {
     }
 }
 
-async function sendQuestAnnouncement(
-    userId: string,
-    questName: string,
-    details?: string,
-): Promise<void> {
+async function sendQuestDm(userId: string, embed: object): Promise<void> {
     const dm = (await rest.post("/users/@me/channels" as any, {
         body: { recipient_id: userId },
     })) as any;
     await rest.post(`/channels/${dm.id}/messages` as any, {
         body: {
-            embeds: [buildQuestAnnouncementEmbed(questName, details)],
+            embeds: [embed],
             allowed_mentions: { parse: [] },
         },
     });
+}
+
+async function sendQuestAnnouncement(
+    userId: string,
+    questName: string,
+    details?: string,
+): Promise<void> {
+    await sendQuestDm(userId, buildQuestAnnouncementEmbed(questName, details));
+}
+
+async function sendQuestReminder(
+    userId: string,
+    questName: string,
+    expires?: string,
+    details?: string,
+): Promise<void> {
+    await sendQuestDm(userId, buildQuestReminderEmbed(questName, expires, details));
 }
 
 // ── Token modal ───────────────────────────────────────────────────────────────
@@ -654,6 +689,35 @@ async function registerCommands() {
                     },
                 ],
             },
+            {
+                name: "quest-remind",
+                description: "DM a quest reminder to this server's bot users",
+                dm_permission: false,
+                default_member_permissions: PermissionFlagsBits.ManageGuild.toString(),
+                options: [
+                    {
+                        name: "quest",
+                        description: "Name of the quest to remind about",
+                        type: ApplicationCommandOptionType.String,
+                        required: true,
+                        max_length: 100,
+                    },
+                    {
+                        name: "expires",
+                        description: "When the quest ends, e.g. \"in 2 days\"",
+                        type: ApplicationCommandOptionType.String,
+                        required: false,
+                        max_length: 50,
+                    },
+                    {
+                        name: "details",
+                        description: "Optional reminder details",
+                        type: ApplicationCommandOptionType.String,
+                        required: false,
+                        max_length: 1000,
+                    },
+                ],
+            },
         ],
     });
     console.log(
@@ -910,7 +974,7 @@ client.on(
         const cmdData = interaction.data as any;
         if (cmdData?.type !== ApplicationCommandType.ChatInput) return;
 
-        if (["set", "reset", "quest-config", "quest-announce"].includes(cmdData?.name)) {
+        if (["set", "reset", "quest-config", "quest-announce", "quest-remind"].includes(cmdData?.name)) {
             const perms = BigInt((interaction as any).member?.permissions ?? "0");
             if (
                 !guildId ||
@@ -973,6 +1037,64 @@ client.on(
                             }],
                         }).catch((error: any) => {
                             console.warn("Could not update announcement progress:", error.message);
+                        });
+                    }
+                }
+                return;
+            }
+
+            if (cmdData.name === "quest-remind") {
+                const questName = cmdData.options?.find((o: any) => o.name === "quest")?.value?.trim();
+                const expires = cmdData.options?.find((o: any) => o.name === "expires")?.value?.trim();
+                const details = cmdData.options?.find((o: any) => o.name === "details")?.value?.trim();
+                if (!questName) {
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        content: "Add a quest name before sending the reminder.",
+                        flags: 64,
+                    });
+                    return;
+                }
+
+                const recipients = getQuestRecipients(questAudience, guildId);
+                if (recipients.length === 0) {
+                    await api.interactions.reply(interaction.id, interaction.token, {
+                        content: "No recipients are registered yet. Members must use a quest command in the configured channel first. Usage tracking starts with this update.",
+                        flags: 64,
+                    });
+                    return;
+                }
+
+                await api.interactions.defer(interaction.id, interaction.token, {
+                    flags: 64,
+                });
+                let sent = 0;
+                let failed = 0;
+                for (let index = 0; index < recipients.length; index++) {
+                    try {
+                        await sendQuestReminder(recipients[index], questName, expires, details);
+                        sent++;
+                    } catch (error: any) {
+                        failed++;
+                        console.warn(
+                            `Quest reminder DM failed for recipient ${recipients[index]}:`,
+                            error.message ?? error,
+                        );
+                    }
+                    if (index < recipients.length - 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 500));
+                    }
+                    if ((index + 1) % 10 === 0 || index === recipients.length - 1) {
+                        const done = index === recipients.length - 1;
+                        await api.interactions.editReply(CLIENT_ID!, interaction.token, {
+                            embeds: [{
+                                color: EMBED_COLOR,
+                                author: { name: "QUEST CONTROL  /  REMINDER" },
+                                title: done ? "✦ Quest reminders sent" : "✦ Sending quest reminders",
+                                description: `Sent: **${sent}** · Could not deliver: **${failed}** · Total: **${recipients.length}**`,
+                                footer: { text: `QUEST CONTROL  •  Members can turn off notifications with /quest-notify off  •  ${FOOTER_CREDIT}` },
+                            }],
+                        }).catch((error: any) => {
+                            console.warn("Could not update reminder progress:", error.message);
                         });
                     }
                 }
