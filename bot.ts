@@ -43,7 +43,8 @@ if (!CLIENT_ID) {
 const PREFIX = "!quest";
 const questChannels = loadQuestChannels();
 const questAudience = loadQuestAudience();
-const BRAND_COLOR = 0x735cff;
+const EMBED_COLOR = 0x2b2d31;
+const BRAND_COLOR = EMBED_COLOR;
 
 const INTENTS =
     GatewayIntentBits.Guilds |
@@ -97,17 +98,17 @@ function buildTokenRequiredEmbed() {
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 fields: [
                     {
-                        name: "01  ·  Run quests",
+                        name: "▶️  Run quests",
                         value: "Start a run using the private token popup.",
                         inline: false,
                     },
                     {
-                        name: "02  ·  Check status",
+                        name: "📋  Check status",
                         value: "See progress, rewards and time remaining.",
                         inline: false,
                     },
                     {
-                        name: "03  ·  Need help?",
+                        name: "❔  Need help?",
                         value:
                             "Open the guide for commands and safety tips.",
                         inline: false,
@@ -159,7 +160,7 @@ function buildHelpEmbed() {
                     "Your quick reference for everything Quest Control.\n━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 fields: [
                     {
-                        name: "Slash commands",
+                        name: "⚡  Slash commands",
                         value:
                             "`/quest-config` — view this server's channel setting\n" +
                             "`/set channel [#channel]` — admin: choose the quest channel\n" +
@@ -173,7 +174,7 @@ function buildHelpEmbed() {
                         inline: false,
                     },
                     {
-                        name: "Prefix commands",
+                        name: "⌨️  Prefix commands",
                         value:
                             "`!quest` — open the control center\n" +
                             "`!quest help` — open this guide\n" +
@@ -181,13 +182,13 @@ function buildHelpEmbed() {
                         inline: false,
                     },
                     {
-                        name: "What the bot reports",
+                        name: "📊  What the bot reports",
                         value:
                             "Progress, completion state, rewards, expiry time, rate limits, and authentication errors are shown as clearly as Discord allows.",
                         inline: false,
                     },
                     {
-                        name: "🔒 Safety first",
+                        name: "🔒  Safety first",
                         value:
                             "Never share your user token in a public message. User-token automation may violate Discord's rules and put your account at risk.",
                         inline: false,
@@ -204,19 +205,19 @@ function buildPingEmbed() {
     return {
         embeds: [
             {
-                color: 0x57f287,
+                color: EMBED_COLOR,
                 author: { name: "QUEST CONTROL  /  SYSTEM" },
                 title: "✦ All systems online",
                 description:
                     "The bot is connected and ready to receive commands.",
                 fields: [
                     {
-                        name: "Status",
+                        name: "📡  Status",
                         value: "🟢 Operational",
                         inline: true,
                     },
                     {
-                        name: "Commands",
+                        name: "🧭  Commands",
                         value: "Use `/quest-help` to begin",
                         inline: true,
                     },
@@ -230,9 +231,9 @@ function buildPingEmbed() {
 
 function buildQuestAnnouncementEmbed(questName: string, details?: string) {
     return {
-        color: BRAND_COLOR,
+        color: EMBED_COLOR,
         author: { name: "QUEST CONTROL  /  NEW QUEST" },
-        title: `🎮 New Quest: ${questName}`,
+        title: `✦ New quest: ${questName}`,
         description:
             "A new Discord Quest is available." +
             (details ? `\n\n${details}` : ""),
@@ -298,9 +299,6 @@ function buildCompleteEmbed(quest: Quest) {
     const gameTitle = cfg.messages.game_title;
     const publisher = cfg.messages.game_publisher;
     const appId = cfg.application.id;
-    const color =
-        parseInt((cfg.colors?.primary ?? "#57F287").replace("#", ""), 16) ||
-        0x57f287;
 
     const tasks = cfg.task_config_v2?.tasks ?? {};
     const taskLines = Object.entries(tasks)
@@ -334,28 +332,29 @@ function buildCompleteEmbed(quest: Quest) {
         : undefined;
 
     const embed: any = {
-        color,
-        title: "✦ Quest Complete",
+        color: EMBED_COLOR,
+        author: { name: "QUEST CONTROL  /  COMPLETION" },
+        title: "✦ Quest complete",
         description: `**${questName}**\n*${gameTitle} • ${publisher}*`,
         fields: [
-            { name: "📋 Task", value: taskLines || "Unknown", inline: false },
+            { name: "📋  Task", value: taskLines || "Unknown", inline: false },
             {
-                name: "📅 Expires",
+                name: "📅  Expires",
                 value: `<t:${expiresUnix}:R> (${daysLeft}d left)`,
                 inline: true,
             },
             {
-                name: "📊 Progress",
+                name: "📊  Progress",
                 value: `\`${makeBar(100)}\`  100% — Done!`,
                 inline: true,
             },
         ],
-        footer: { text: "Quest Control • Completion report" },
+        footer: { text: "QUEST CONTROL  •  Completion report" },
         timestamp: new Date().toISOString(),
     };
     if (rewardLines)
         embed.fields.push({
-            name: "🎁 Reward",
+            name: "🎁  Reward",
             value: rewardLines,
             inline: false,
         });
@@ -365,7 +364,6 @@ function buildCompleteEmbed(quest: Quest) {
 
 // ── Build "Quest Status" embed (one per quest) ────────────────────────────────
 function buildStatusEmbed(info: QuestStatusInfo) {
-    const color = parseInt(info.colorHex, 16) || 0x5865f2;
     const taskLabel = TASK_LABELS[info.taskName] ?? info.taskName;
     const targetMins = Math.ceil(info.targetSeconds / 60);
     const doneMins = Math.ceil(info.doneSeconds / 60);
@@ -394,28 +392,29 @@ function buildStatusEmbed(info: QuestStatusInfo) {
         : undefined;
 
     const embed: any = {
-        color,
+        color: EMBED_COLOR,
+        author: { name: "QUEST CONTROL  /  STATUS" },
         title: `${statusIcon} ${info.name}`,
         description: `*${info.gameTitle} • ${info.publisher}*`,
         fields: [
             {
-                name: "📋 Task",
+                name: "📋  Task",
                 value: `${taskLabel} • ${targetMins} min`,
                 inline: false,
             },
             {
-                name: "📊 Progress",
+                name: "📊  Progress",
                 value: `\`${bar}\`  ${info.progressPct}% (${doneMins}/${targetMins} min) — ${statusText}`,
                 inline: false,
             },
             {
-                name: "📅 Expires",
+                name: "📅  Expires",
                 value: `<t:${expiresUnix}:R> (${daysLeft}d left)`,
                 inline: true,
             },
-            { name: "🎁 Reward", value: rewardText, inline: true },
+            { name: "🎁  Reward", value: rewardText, inline: true },
         ],
-        footer: { text: "Quest Control • Live status" },
+        footer: { text: "QUEST CONTROL  •  Live status" },
         timestamp: new Date().toISOString(),
     };
     if (thumbnail) embed.thumbnail = thumbnail;
@@ -759,7 +758,13 @@ client.on(
             const notice = questChannelNotice(questChannels, guildId, channelId);
             if (notice) {
                 await api.interactions.reply(interaction.id, interaction.token, {
-                    embeds: [{ color: BRAND_COLOR, title: "✦ Quest channel only", description: notice }],
+                    embeds: [{
+                        color: EMBED_COLOR,
+                        author: { name: "QUEST CONTROL  /  ACCESS" },
+                        title: "✦ Quest channel only",
+                        description: notice,
+                        footer: { text: "QUEST CONTROL  •  Channel restriction" },
+                    }],
                     flags: 64,
                 });
                 return;
@@ -959,11 +964,11 @@ client.on(
                     if ((index + 1) % 10 === 0 || index === recipients.length - 1) {
                         await api.interactions.editReply(CLIENT_ID!, interaction.token, {
                             embeds: [{
-                                color: BRAND_COLOR,
+                                color: EMBED_COLOR,
                                 author: { name: "QUEST CONTROL  /  ANNOUNCEMENT" },
                                 title: "✦ Sending quest DMs",
                                 description: `Sent: **${sent}** · Could not deliver: **${failed}** · Total: **${recipients.length}**`,
-                                footer: { text: "Members can turn off notifications with /quest-notify off" },
+                                footer: { text: "QUEST CONTROL  •  Members can turn off notifications with /quest-notify off" },
                             }],
                         }).catch((error: any) => {
                             console.warn("Could not update announcement progress:", error.message);
@@ -977,18 +982,18 @@ client.on(
                 const configuredChannel = questChannels[guildId];
                 await api.interactions.reply(interaction.id, interaction.token, {
                     embeds: [{
-                        color: BRAND_COLOR,
+                        color: EMBED_COLOR,
                         author: { name: "QUEST CONTROL  /  SETTINGS" },
                         title: "✦ Server quest settings",
                         description: configuredChannel
                             ? `Quest commands are enabled only in <#${configuredChannel}>.`
                             : "No quest channel is configured. Quest commands are currently disabled. Use `/set channel` to enable them.",
                         fields: [{
-                            name: "Channel",
+                            name: "📍  Channel",
                             value: configuredChannel ? `<#${configuredChannel}>` : "Not set",
                             inline: true,
                         }],
-                        footer: { text: "Visible only to you • Manage Server required" },
+                        footer: { text: "QUEST CONTROL  •  Visible only to you · Manage Server required" },
                     }],
                     flags: 64,
                 });
@@ -1008,13 +1013,13 @@ client.on(
                     const removed = removeQuestChannel(questChannels, guildId);
                     await api.interactions.reply(interaction.id, interaction.token, {
                         embeds: [{
-                            color: BRAND_COLOR,
+                            color: EMBED_COLOR,
                             author: { name: "QUEST CONTROL  /  SETTINGS" },
                             title: removed ? "✦ Quest channel cleared" : "✦ No channel was set",
                             description: removed
                                 ? "Quest commands are now disabled for this server. Set a channel again with `/set channel`."
                                 : "Quest commands are already disabled. Use `/set channel` to enable them.",
-                            footer: { text: "Visible only to you • Manage Server required" },
+                            footer: { text: "QUEST CONTROL  •  Visible only to you · Manage Server required" },
                         }],
                         flags: 64,
                     });
@@ -1045,7 +1050,7 @@ client.on(
                 saveQuestChannel(questChannels, guildId, targetId);
                 await api.interactions.reply(interaction.id, interaction.token, {
                     embeds: [{
-                        color: BRAND_COLOR,
+                        color: EMBED_COLOR,
                         author: { name: "QUEST CONTROL  /  SETTINGS" },
                         title: "✦ Quest channel saved",
                         description: `Quest commands and panel actions now work only in <#${targetId}>.`,
@@ -1076,12 +1081,13 @@ client.on(
                 const enabled = getQuestRecipients(questAudience, guildId).includes(userId);
                 await api.interactions.reply(interaction.id, interaction.token, {
                     embeds: [{
-                        color: BRAND_COLOR,
+                        color: EMBED_COLOR,
+                        author: { name: "QUEST CONTROL  /  NOTIFICATIONS" },
                         title: enabled ? "✦ Quest DMs are on" : "✦ Quest DMs are off",
                         description: enabled
                             ? "You'll receive English quest announcements sent by this server's admin."
                             : "Run `/quest-notify on` if you want to receive English quest announcements.",
-                        footer: { text: "Only you can see this setting" },
+                        footer: { text: "QUEST CONTROL  •  Only you can see this setting" },
                     }],
                     flags: 64,
                 });
@@ -1112,12 +1118,13 @@ client.on(
                 setQuestNotification(questAudience, guildId, userId, subcommand === "on");
                 await api.interactions.reply(interaction.id, interaction.token, {
                     embeds: [{
-                        color: BRAND_COLOR,
+                        color: EMBED_COLOR,
+                        author: { name: "QUEST CONTROL  /  NOTIFICATIONS" },
                         title: subcommand === "on" ? "✦ Quest DMs enabled" : "✦ Quest DMs disabled",
                         description: subcommand === "on"
                             ? "You'll receive English new-quest announcements sent by this server's admin."
                             : "You won't receive new quest announcement DMs from this server.",
-                        footer: { text: "Only your Discord user ID is stored for this preference" },
+                        footer: { text: "QUEST CONTROL  •  Only your Discord user ID is stored for this preference" },
                     }],
                     flags: 64,
                 });
@@ -1234,7 +1241,13 @@ client.on(
         if (notice) {
             await api.channels
                 .createMessage(message.channel_id, {
-                    embeds: [{ color: BRAND_COLOR, title: "✦ Quest channel only", description: notice }],
+                    embeds: [{
+                        color: EMBED_COLOR,
+                        author: { name: "QUEST CONTROL  /  ACCESS" },
+                        title: "✦ Quest channel only",
+                        description: notice,
+                        footer: { text: "QUEST CONTROL  •  Channel restriction" },
+                    }],
                     message_reference: { message_id: message.id },
                 })
                 .catch(() => {});
