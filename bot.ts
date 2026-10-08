@@ -45,6 +45,7 @@ const questChannels = loadQuestChannels();
 const questAudience = loadQuestAudience();
 const EMBED_COLOR = 0x2b2d31;
 const BRAND_COLOR = EMBED_COLOR;
+const FOOTER_CREDIT = "Made by @z6iz";
 
 const INTENTS =
     GatewayIntentBits.Guilds |
@@ -114,7 +115,7 @@ function buildTokenRequiredEmbed() {
                         inline: false,
                     },
                 ],
-                footer: { text: "QUEST CONTROL  •  Never post a token publicly" },
+                footer: { text: `QUEST CONTROL  •  Never post a token publicly  •  ${FOOTER_CREDIT}` },
                 timestamp: new Date().toISOString(),
             },
         ],
@@ -194,7 +195,7 @@ function buildHelpEmbed() {
                         inline: false,
                     },
                 ],
-                footer: { text: "QUEST CONTROL  •  Help center" },
+                footer: { text: `QUEST CONTROL  •  Help center  •  ${FOOTER_CREDIT}` },
                 timestamp: new Date().toISOString(),
             },
         ],
@@ -222,7 +223,7 @@ function buildPingEmbed() {
                         inline: true,
                     },
                 ],
-                footer: { text: "QUEST CONTROL  •  System status" },
+                footer: { text: `QUEST CONTROL  •  System status  •  ${FOOTER_CREDIT}` },
                 timestamp: new Date().toISOString(),
             },
         ],
@@ -237,7 +238,7 @@ function buildQuestAnnouncementEmbed(questName: string, details?: string) {
         description:
             "A new Discord Quest is available." +
             (details ? `\n\n${details}` : ""),
-        footer: { text: "QUEST CONTROL  •  You received this because you used quest notifications" },
+        footer: { text: `QUEST CONTROL  •  You received this because you used quest notifications  •  ${FOOTER_CREDIT}` },
         timestamp: new Date().toISOString(),
     };
 }
@@ -349,7 +350,7 @@ function buildCompleteEmbed(quest: Quest) {
                 inline: true,
             },
         ],
-        footer: { text: "QUEST CONTROL  •  Completion report" },
+        footer: { text: `QUEST CONTROL  •  Completion report  •  ${FOOTER_CREDIT}` },
         timestamp: new Date().toISOString(),
     };
     if (rewardLines)
@@ -414,7 +415,7 @@ function buildStatusEmbed(info: QuestStatusInfo) {
             },
             { name: "🎁  Reward", value: rewardText, inline: true },
         ],
-        footer: { text: "QUEST CONTROL  •  Live status" },
+        footer: { text: `QUEST CONTROL  •  Live status  •  ${FOOTER_CREDIT}` },
         timestamp: new Date().toISOString(),
     };
     if (thumbnail) embed.thumbnail = thumbnail;
@@ -763,7 +764,7 @@ client.on(
                         author: { name: "QUEST CONTROL  /  ACCESS" },
                         title: "✦ Quest channel only",
                         description: notice,
-                        footer: { text: "QUEST CONTROL  •  Channel restriction" },
+                        footer: { text: `QUEST CONTROL  •  Channel restriction  •  ${FOOTER_CREDIT}` },
                     }],
                     flags: 64,
                 });
@@ -968,7 +969,7 @@ client.on(
                                 author: { name: "QUEST CONTROL  /  ANNOUNCEMENT" },
                                 title: "✦ Sending quest DMs",
                                 description: `Sent: **${sent}** · Could not deliver: **${failed}** · Total: **${recipients.length}**`,
-                                footer: { text: "QUEST CONTROL  •  Members can turn off notifications with /quest-notify off" },
+                                footer: { text: `QUEST CONTROL  •  Members can turn off notifications with /quest-notify off  •  ${FOOTER_CREDIT}` },
                             }],
                         }).catch((error: any) => {
                             console.warn("Could not update announcement progress:", error.message);
@@ -993,7 +994,7 @@ client.on(
                             value: configuredChannel ? `<#${configuredChannel}>` : "Not set",
                             inline: true,
                         }],
-                        footer: { text: "QUEST CONTROL  •  Visible only to you · Manage Server required" },
+                        footer: { text: `QUEST CONTROL  •  Visible only to you · Manage Server required  •  ${FOOTER_CREDIT}` },
                     }],
                     flags: 64,
                 });
@@ -1019,7 +1020,7 @@ client.on(
                             description: removed
                                 ? "Quest commands are now disabled for this server. Set a channel again with `/set channel`."
                                 : "Quest commands are already disabled. Use `/set channel` to enable them.",
-                            footer: { text: "QUEST CONTROL  •  Visible only to you · Manage Server required" },
+                            footer: { text: `QUEST CONTROL  •  Visible only to you · Manage Server required  •  ${FOOTER_CREDIT}` },
                         }],
                         flags: 64,
                     });
@@ -1054,7 +1055,7 @@ client.on(
                         author: { name: "QUEST CONTROL  /  SETTINGS" },
                         title: "✦ Quest channel saved",
                         description: `Quest commands and panel actions now work only in <#${targetId}>.`,
-                        footer: { text: "QUEST CONTROL  •  Server settings" },
+                        footer: { text: `QUEST CONTROL  •  Server settings  •  ${FOOTER_CREDIT}` },
                     }],
                     flags: 64,
                 });
@@ -1087,7 +1088,7 @@ client.on(
                         description: enabled
                             ? "You'll receive English quest announcements sent by this server's admin."
                             : "Run `/quest-notify on` if you want to receive English quest announcements.",
-                        footer: { text: "QUEST CONTROL  •  Only you can see this setting" },
+                        footer: { text: `QUEST CONTROL  •  Only you can see this setting  •  ${FOOTER_CREDIT}` },
                     }],
                     flags: 64,
                 });
@@ -1124,7 +1125,7 @@ client.on(
                         description: subcommand === "on"
                             ? "You'll receive English new-quest announcements sent by this server's admin."
                             : "You won't receive new quest announcement DMs from this server.",
-                        footer: { text: "QUEST CONTROL  •  Only your Discord user ID is stored for this preference" },
+                        footer: { text: `QUEST CONTROL  •  Only your Discord user ID is stored for this preference  •  ${FOOTER_CREDIT}` },
                     }],
                     flags: 64,
                 });
@@ -1246,7 +1247,7 @@ client.on(
                         author: { name: "QUEST CONTROL  /  ACCESS" },
                         title: "✦ Quest channel only",
                         description: notice,
-                        footer: { text: "QUEST CONTROL  •  Channel restriction" },
+                        footer: { text: `QUEST CONTROL  •  Channel restriction  •  ${FOOTER_CREDIT}` },
                     }],
                     message_reference: { message_id: message.id },
                 })
