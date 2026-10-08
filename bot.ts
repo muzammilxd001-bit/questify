@@ -1226,7 +1226,20 @@ client.on(
         if (message.author.bot) return;
         const raw = message.content?.trim() ?? "";
         if (!/^!quest(?:\s|$)/i.test(raw)) return;
-        if (questChannelNotice(questChannels, message.guild_id, message.channel_id)) return;
+        const notice = questChannelNotice(
+            questChannels,
+            message.guild_id,
+            message.channel_id,
+        );
+        if (notice) {
+            await api.channels
+                .createMessage(message.channel_id, {
+                    embeds: [{ color: BRAND_COLOR, title: "✦ Quest channel only", description: notice }],
+                    message_reference: { message_id: message.id },
+                })
+                .catch(() => {});
+            return;
+        }
         rememberQuestUser(message.guild_id, message.author.id);
 
         const args = raw.slice(PREFIX.length).trim();
